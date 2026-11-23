@@ -1,4 +1,4 @@
-package frac
+package sealed
 
 import (
 	"context"
@@ -14,9 +14,8 @@ import (
 	"github.com/ozontech/seq-db/cache"
 	"github.com/ozontech/seq-db/config"
 	"github.com/ozontech/seq-db/consts"
-	"github.com/ozontech/seq-db/frac/common"
+	"github.com/ozontech/seq-db/frac"
 	"github.com/ozontech/seq-db/frac/processor"
-	"github.com/ozontech/seq-db/frac/sealed"
 	"github.com/ozontech/seq-db/frac/sealed/lids"
 	"github.com/ozontech/seq-db/frac/sealed/seqids"
 	"github.com/ozontech/seq-db/frac/sealed/token"
@@ -26,14 +25,14 @@ import (
 	"github.com/ozontech/seq-db/util"
 )
 
-var _ Fraction = (*Sealed)(nil)
+var _ frac.Fraction = (*Sealed)(nil)
 
 type Sealed struct {
-	Config *Config
+	Config *frac.Config
 
 	BaseFileName string
 
-	info *common.Info
+	info *frac.Info
 
 	docsFile  *os.File
 	docsCache *cache.ConcurrentCache[[]byte]
@@ -46,7 +45,7 @@ type Sealed struct {
 
 	legacyFile *os.File
 
-	blocksData sealed.BlocksData
+	blocksData BlocksData
 	indexCache *IndexCache
 
 	initMu   *sync.RWMutex
@@ -57,7 +56,7 @@ type Sealed struct {
 	// shit for testing
 	PartialSuicideMode PSD
 
-	skipMaskProvider skipMaskProvider
+	skipMaskProvider frac.SkipMaskProvider
 }
 
 type PSD int // emulates hard shutdown on different stages of fraction deletion, used for tests
@@ -73,9 +72,9 @@ func NewSealed(
 	readLimiter *storage.ReadLimiter,
 	indexCache *IndexCache,
 	docsCache *cache.ConcurrentCache[[]byte],
-	info *common.Info,
-	cfg *Config,
-	skipMaskProvider skipMaskProvider,
+	info *frac.Info,
+	cfg *frac.Config,
+	skipMaskProvider frac.SkipMaskProvider,
 ) *Sealed {
 	f := &Sealed{
 		initMu: &sync.RWMutex{},
@@ -106,12 +105,12 @@ func NewSealed(
 
 func NewSealedPreloaded(
 	baseFile string,
-	preloaded *sealed.PreloadedData,
+	preloaded *PreloadedData,
 	rl *storage.ReadLimiter,
 	indexCache *IndexCache,
 	docsCache *cache.ConcurrentCache[[]byte],
-	cfg *Config,
-	skipMaskProvider skipMaskProvider,
+	cfg *frac.Config,
+	skipMaskProvider frac.SkipMaskProvider,
 ) *Sealed {
 	f := &Sealed{
 		blocksData: preloaded.BlocksData,
@@ -477,7 +476,7 @@ func (f *Sealed) Suicide() {
 }
 
 func (f *Sealed) String() string {
-	return fracToString(f, "sealed")
+	return frac.FractionToString(f, "sealed")
 }
 
 func (f *Sealed) Fetch(ctx context.Context, ids []seq.ID, noSkipMasks bool) ([][]byte, error) {
@@ -532,7 +531,7 @@ func (f *Sealed) createDataProvider(ctx context.Context) *sealedDataProvider {
 	}
 }
 
-func (f *Sealed) Info() *common.Info {
+func (f *Sealed) Info() *frac.Info {
 	return f.info
 }
 
@@ -616,13 +615,13 @@ func (f *Sealed) computeIndexSize() {
 	}
 }
 
-func loadInfoLegacy(infoReader storage.IndexReader) (*common.Info, error) {
+func loadInfoLegacy(infoReader storage.IndexReader) (*frac.Info, error) {
 	block, _, err := infoReader.ReadIndexBlock(0, nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read info block: %w", err)
 	}
 
-	var bi sealed.BlockInfo
+	var bi BlockInfo
 	if err := bi.Unpack(block); err != nil {
 		return nil, fmt.Errorf("cannot unpack info block: %w", err)
 	}
@@ -634,7 +633,7 @@ func loadInfo(r interface {
 	io.ReaderAt
 	Stat() (os.FileInfo, error)
 },
-) (*common.Info, error) {
+) (*frac.Info, error) {
 	stat, err := r.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("cannot stat info file: %w", err)
@@ -645,7 +644,7 @@ func loadInfo(r interface {
 		return nil, fmt.Errorf("cannot read info block: %w", err)
 	}
 
-	var bi sealed.BlockInfo
+	var bi BlockInfo
 	if err := bi.Unpack(block); err != nil {
 		return nil, fmt.Errorf("cannot unpack info block: %w", err)
 	}

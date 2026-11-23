@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/ozontech/seq-db/frac"
+	"github.com/ozontech/seq-db/frac/active"
+	"github.com/ozontech/seq-db/frac/sealed"
 	"github.com/ozontech/seq-db/seq"
 )
 
@@ -121,11 +123,11 @@ func (p *refCounterWg) Inc() { p.wg.Add(1) }
 
 func (p *refCounterWg) Dec() { p.wg.Done() }
 
-// refCountedActive wraps frac.Active with reference counting.
+// refCountedActive wraps active.Active with reference counting.
 // Destroy releases the underlying Active after all references are gone.
 type refCountedActive struct {
 	refCounterWg
-	*frac.Active
+	*active.Active
 }
 
 // Destroy waits for all references to be released and then releases the Active.
@@ -134,10 +136,10 @@ func (p *refCountedActive) Destroy() {
 	p.Release()
 }
 
-// refCountedSealed wraps frac.Sealed with reference counting.
+// refCountedSealed wraps sealed.Sealed with reference counting.
 type refCountedSealed struct {
 	refCounterWg
-	*frac.Sealed
+	*sealed.Sealed
 }
 
 // Destroy waits for all references to be released and then destroys the Sealed.
@@ -146,10 +148,10 @@ func (p *refCountedSealed) Destroy() {
 	p.Suicide()
 }
 
-// refCountedRemote wraps frac.Remote with reference counting.
+// refCountedRemote wraps sealed.Remote with reference counting.
 type refCountedRemote struct {
 	refCounterWg
-	*frac.Remote
+	*sealed.Remote
 }
 
 // Destroy waits for all references to be released and then destroys the Remote.
